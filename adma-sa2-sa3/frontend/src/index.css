@@ -1,0 +1,153 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Space+Mono:wght@400;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 30 5% 96%;
+    --foreground: 20 10% 8%;
+
+    --card: 30 5% 93%;
+    --card-foreground: 20 10% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 10% 8%;
+
+    --primary: 14 85% 56%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 30 5% 90%;
+    --secondary-foreground: 20 8% 40%;
+
+    --muted: 30 5% 92%;
+    --muted-foreground: 20 5% 50%;
+
+    --accent: 14 85% 56%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 30 5% 88%;
+    --input: 30 5% 88%;
+    --ring: 14 85% 56%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 30 5% 96%;
+    --sidebar-foreground: 20 10% 8%;
+    --sidebar-primary: 14 85% 56%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 30 5% 90%;
+    --sidebar-accent-foreground: 20 10% 8%;
+    --sidebar-border: 30 5% 88%;
+    --sidebar-ring: 14 85% 56%;
+
+    /* Custom tokens */
+    --glow: 14 85% 56%;
+    --surface: 30 5% 94%;
+    --surface-hover: 30 5% 90%;
+    --gradient-primary: linear-gradient(135deg, hsl(14 85% 56%), hsl(8 78% 50%));
+    --gradient-subtle: linear-gradient(135deg, hsl(30 5% 96%), hsl(30 5% 93%));
+    --shadow-glow: 0 0 40px -10px hsl(14 85% 56% / 0.2);
+    --shadow-glow-lg: 0 0 80px -20px hsl(14 85% 56% / 0.15);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'DM Sans', system-ui, sans-serif;
+  }
+
+  ::selection {
+    background: hsl(14 85% 56% / 0.2);
+    color: hsl(20 10% 5%);
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-xl border border-border/50 rounded-xl;
+  }
+
+  .glow-border {
+    @apply relative;
+    box-shadow: var(--shadow-glow);
+  }
+
+  .glow-border::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, hsl(14 85% 56% / 0.25), transparent, hsl(8 78% 50% / 0.1));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-primary);
+  }
+
+  .font-mono {
+    font-family: 'Space Mono', monospace;
+  }
+
+  .input-premium {
+    @apply w-full rounded-xl border border-border/50 bg-surface px-4 py-3 text-foreground 
+           placeholder:text-muted-foreground/50 
+           focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20
+           transition-all duration-300;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3
+           font-medium text-primary-foreground
+           transition-all duration-300 
+           hover:shadow-[var(--shadow-glow)] hover:scale-[1.02]
+           active:scale-[0.98];
+    background-image: var(--gradient-primary);
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3
+           font-medium text-muted-foreground
+           transition-all duration-300
+           hover:text-foreground hover:bg-secondary
+           active:scale-[0.98];
+  }
+
+  .dot-pattern {
+    background-image: radial-gradient(circle, hsl(30 5% 84%) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .noise-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 200px 200px;
+  }
+}
+
+@layer utilities {
+  .bg-surface {
+    background-color: hsl(var(--surface));
+  }
+}
