@@ -1,0 +1,70 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Local development stack.
+# In production, the app container connects to AWS RDS; Postgres is not needed.
+# Usage:
+#   docker compose up --build
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── PostgreSQL (local substitute for AWS RDS) ──────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-urlshortener}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Spring Boot backend ────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-urlshortener}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      JWT_SECRET: ${JWT_SECRET:-changeme-this-must-be-at-least-32-chars-long!!}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+      SERVER_PORT: 8080
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+      # Allow requests from the frontend container (port 80) and local dev ports
+      # Note: browsers omit the default port, so http://localhost (not :80) is the actual origin
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost,http://localhost:80,http://localhost:3000,http://localhost:5173,http://frontend:80}
+    ports:
+      - "8080:8080"
+
+  # ── React frontend (Nginx) ─────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Bake the backend URL into the Vite bundle at build time.
+        # Inside Docker Compose, the frontend reaches the backend via the
+        # service name "backend" on port 8080.
+        # For AWS ECS Fargate, override this with your ALB or API Gateway URL.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  postgres_data:

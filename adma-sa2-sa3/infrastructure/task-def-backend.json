@@ -1,0 +1,64 @@
+{
+  "family": "adma-backend",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "backend",
+      "image": "ACCOUNT_ID.dkr.ecr.eu-south-2.amazonaws.com/adma/backend:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "hostPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "DB_HOST",
+          "value": "adma-postgres.xxxxx.eu-south-2.rds.amazonaws.com"
+        },
+        { "name": "DB_PORT", "value": "5432" },
+        { "name": "DB_NAME", "value": "urlshortener" },
+        { "name": "DB_USERNAME", "value": "appuser" },
+        { "name": "APP_BASE_URL", "value": "https://go.tudominio.com" },
+        { "name": "CORS_ALLOWED_ORIGINS", "value": "https://tudominio.com" },
+        { "name": "SERVER_PORT", "value": "8080" },
+        { "name": "JWT_EXPIRATION_MS", "value": "86400000" }
+      ],
+      "secrets": [
+        {
+          "name": "DB_PASSWORD",
+          "valueFrom": "arn:aws:ssm:eu-south-2:ACCOUNT_ID:parameter/adma/prod/DB_PASSWORD"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:ssm:eu-south-2:ACCOUNT_ID:parameter/adma/prod/JWT_SECRET"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/adma-backend",
+          "awslogs-region": "eu-south-2",
+          "awslogs-stream-prefix": "backend"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:8080/actuator/health || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}

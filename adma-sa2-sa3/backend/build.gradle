@@ -1,0 +1,61 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '3.4.2'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'adma.sa2-sa3'
+version = '0.0.1-SNAPSHOT'
+description = 'URL Shortener backend – Spring Boot 3, JWT, AWS RDS'
+
+// Java source/target compatibility.
+// No toolchain block is used here so that Gradle picks up whatever JDK is
+// available — Java 21 inside Docker (gradle:8.5-jdk21) and Java 23 locally.
+// The release flag enforces a consistent API surface regardless of the running JDK.
+java {
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	// Spring Boot core
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+	// Spring Data JPA + Hibernate
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+	// Spring Security
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+
+	// PostgreSQL driver (AWS RDS default choice)
+	runtimeOnly 'org.postgresql:postgresql'
+
+	// JWT – JJWT (stable 0.12.x)
+	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+	runtimeOnly  'io.jsonwebtoken:jjwt-impl:0.12.6'
+	runtimeOnly  'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+	// Lombok – boilerplate reduction
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+
+	// ShedLock – distributed lock for @Scheduled jobs in multi-instance deployments.
+	// Stores the lock in the same PostgreSQL database; zero extra infrastructure.
+	implementation 'net.javacrumbs.shedlock:shedlock-spring:6.3.0'
+	implementation 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:6.3.0'
+
+	// Test
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.security:spring-security-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	testRuntimeOnly 'com.h2database:h2'   // In-memory DB for context-load tests
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}

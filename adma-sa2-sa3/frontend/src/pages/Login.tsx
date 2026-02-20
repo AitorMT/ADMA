@@ -1,16 +1,26 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
-import { loginUser } from "@/lib/api";
+import { loginUser, syncAnonUrls, ApiError } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import { getValidAnonUrls, clearAnonUrls } from "@/lib/localUrlStore";
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { setAuth } = useAuth();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Redirect to the page the user originally tried to visit, or fall back to /
+  const from =
+    (location.state as { from?: { pathname: string } } | null)?.from
+      ?.pathname ?? "/";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,10 +29,38 @@ const Login = () => {
     setLoading(true);
     setError("");
     try {
-      await loginUser(email, password);
-      navigate("/");
-    } catch {
-      setError("Credenciales inválidas. Inténtalo de nuevo.");
+      const response = await loginUser(email, password);
+      // Persist token and user in AuthContext (and localStorage)
+      setAuth(response.token, { email: response.email, name: response.name });
+
+      // Sync any anonymous localStorage URLs to the user's account
+      const anonUrls = getValidAnonUrls();
+      if (anonUrls.length > 0) {
+        try {
+          await syncAnonUrls(
+            anonUrls.map((u) => u.originalUrl),
+            response.token,
+          );
+          clearAnonUrls();
+        } catch {
+          // Sync failure is non-critical — the user is logged in, they just
+          // keep their localStorage URLs until the next attempt.
+          console.warn("Failed to sync anonymous URLs after login");
+        }
+      }
+
+      navigate(from, { replace: true });
+    } catch (err) {
+      if (err instanceof ApiError) {
+        // 401 → generic message to avoid user enumeration
+        setError(
+          err.status === 401
+            ? "Credenciales inválidas. Inténtalo de nuevo."
+            : err.message,
+        );
+      } else {
+        setError("No se pudo conectar con el servidor. Inténtalo más tarde.");
+      }
     } finally {
       setLoading(false);
     }
@@ -33,7 +71,11 @@ const Login = () => {
     visible: (i: number) => ({
       opacity: 1,
       x: 0,
-      transition: { delay: 0.3 + i * 0.1, duration: 0.4, ease: [0.22, 1, 0.36, 1] as const },
+      transition: {
+        delay: 0.3 + i * 0.1,
+        duration: 0.4,
+        ease: [0.22, 1, 0.36, 1] as const,
+      },
     }),
   };
 
@@ -46,8 +88,15 @@ const Login = () => {
       footerLinkTo="/register"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <motion.div custom={0} variants={inputVariants} initial="hidden" animate="visible">
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Correo electrónico</label>
+        <motion.div
+          custom={0}
+          variants={inputVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            Correo electrónico
+          </label>
           <input
             type="email"
             value={email}
@@ -58,8 +107,15 @@ const Login = () => {
           />
         </motion.div>
 
-        <motion.div custom={1} variants={inputVariants} initial="hidden" animate="visible">
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Contraseña</label>
+        <motion.div
+          custom={1}
+          variants={inputVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            Contraseña
+          </label>
           <input
             type="password"
             value={password}
@@ -80,13 +136,22 @@ const Login = () => {
           </motion.p>
         )}
 
-        <motion.div custom={2} variants={inputVariants} initial="hidden" animate="visible">
+        <motion.div
+          custom={2}
+          variants={inputVariants}
+          initial="hidden"
+          animate="visible"
+        >
           <button
             type="submit"
             disabled={loading}
             className="btn-primary w-full mt-2 disabled:opacity-50"
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Iniciar sesión"}
+            {loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              "Iniciar sesión"
+            )}
           </button>
         </motion.div>
       </form>
