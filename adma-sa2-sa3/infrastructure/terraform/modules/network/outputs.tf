@@ -1,0 +1,23 @@
+output "vpc_id" {
+  value = aws_vpc.this.id
+}
+
+output "vpc_cidr" {
+  value = aws_vpc.this.cidr_block
+}
+
+output "public_subnet_ids" {
+  value = [for subnet in aws_subnet.public : subnet.id]
+}
+
+output "private_subnet_ids" {
+  value = [for subnet in aws_subnet.private : subnet.id]
+}
+
+output "private_route_table_ids" {
+  value = [for rt in aws_route_table.private : rt.id]
+}
+
+output "availability_zones" {
+  value = local.azs
+}
