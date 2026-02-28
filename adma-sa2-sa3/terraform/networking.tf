@@ -7,17 +7,17 @@ resource "aws_vpc" "this" {
   enable_dns_support   = true
   enable_dns_hostnames = true
 
-  # Nombre identificativo
   tags = {
     Name = "${var.project}-vpc"
   }
 }
+
 # ================================
 # SUBREDES
 # ================================
 
-# Subredes públicas (para el Load Balancer)
-# Uso count para crear 2 subredes, una en cada AZ, para alta disponibilidad, pero sin crear más de 2 para no complicar la red
+# Subredes públicas: ALB + tareas ECS (el IP público les permite llegar a ECR
+# sin necesitar NAT Gateway, que costaría ~30 $/mes)
 resource "aws_subnet" "public" {
   count = 2
 
@@ -27,25 +27,11 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "${var.project}-public-subnet-${count.index}"
+    Name = "${var.project}-public-${count.index}"
   }
 }
 
-# Subredes privadas para ECS (contenedores)
-# Uso count para crear 2 subredes, una en cada AZ, para alta disponibilidad, pero sin crear más de 2 para no complicar la red
-resource "aws_subnet" "private_app" {
-  count = 2
-
-  vpc_id            = aws_vpc.this.id
-  cidr_block        = cidrsubnet("10.0.0.0/16", 8, count.index + 10)
-  availability_zone = data.aws_availability_zones.available.names[count.index]
-
-  tags = {
-    Name = "${var.project}-private-app-${count.index}"
-  }
-}
-
-# Subred privada para la base de datos
+# Subredes privadas: solo para la base de datos (sin ruta a internet)
 resource "aws_subnet" "private_db" {
   count = 2
 
@@ -62,7 +48,7 @@ resource "aws_subnet" "private_db" {
 # INTERNET Y RUTAS
 # ================================
 
-# Gateway para acceso a internet
+# Gateway para acceso a internet (subredes públicas)
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.this.id
 
@@ -71,26 +57,39 @@ resource "aws_internet_gateway" "igw" {
   }
 }
 
-# Tabla de rutas pública
+# Tabla de rutas pública (ALB + ECS)
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.this.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
 
   tags = {
     Name = "${var.project}-public-rt"
   }
 }
 
-# Ruta hacia internet
-resource "aws_route" "internet_access" {
-  route_table_id         = aws_route_table.public.id
-  destination_cidr_block = "0.0.0.0/0"
-  gateway_id             = aws_internet_gateway.igw.id
-}
-
-# Asociación de subredes públicas
-resource "aws_route_table_association" "public_assoc" {
+resource "aws_route_table_association" "public" {
   count = length(aws_subnet.public)
 
   subnet_id      = aws_subnet.public[count.index].id
   route_table_id = aws_route_table.public.id
+}
+
+# Tabla de rutas privada para la BD (sin ruta a internet — aislada)
+resource "aws_route_table" "private_db" {
+  vpc_id = aws_vpc.this.id
+
+  tags = {
+    Name = "${var.project}-private-db-rt"
+  }
+}
+
+resource "aws_route_table_association" "private_db" {
+  count = length(aws_subnet.private_db)
+
+  subnet_id      = aws_subnet.private_db[count.index].id
+  route_table_id = aws_route_table.private_db.id
 }

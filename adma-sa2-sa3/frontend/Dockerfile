@@ -16,9 +16,14 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Declare the build-time argument (no default = must be supplied in production)
-# Falls back to localhost for convenience during local docker builds.
-ARG VITE_API_BASE_URL=http://localhost:8080
+# VITE_API_BASE_URL defaults to "" (empty string) so the browser uses
+# relative paths (/api/..., /auth/...) which resolve to whatever origin
+# served the page — i.e. the ALB.  This means the same image works behind
+# any ALB without being rebuilt.
+#
+# Override only if the API lives on a different origin, e.g.:
+#   docker build --build-arg VITE_API_BASE_URL=https://api.example.com .
+ARG VITE_API_BASE_URL=""
 
 # Make the ARG available to the Vite build process as an env var
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
@@ -39,12 +44,9 @@ RUN bun run build
 FROM nginx:stable-alpine AS production
 
 COPY --from=build /app/dist /usr/share/nginx/html
-# Runtime backend upstream used by nginx reverse proxy.
-# In ECS, this is overridden via task-definition environment variables.
-ENV BACKEND_UPSTREAM=backend:8080
-
-# Use nginx template + envsubst at container startup.
-COPY nginx.conf /etc/nginx/templates/default.conf.template
+# nginx.conf estático — no necesita envsubst porque el routing
+# de short codes y API lo gestiona el ALB directamente.
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

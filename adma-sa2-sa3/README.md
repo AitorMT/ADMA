@@ -4,7 +4,195 @@
 
 ---
 
-## Índice
+## ⚡ Despliegue rápido con Terraform
+
+> Lee esta sección antes de tocar nada. El orden importa.
+
+### Orden correcto de despliegue (primer deploy o tras `terraform destroy`)
+
+```
+1.  docker build + push  →  BACKEND    (sin dependencias externas)
+2.  docker build + push  →  FRONTEND   (sin dependencias externas)
+3.  terraform apply       →  crea toda la infraestructura
+    → las imágenes ya están en ECR, ECS las descarga directamente
+```
+
+> El frontend ya **no necesita** el DNS del ALB como argumento de build.
+> Usa rutas relativas que funcionan con cualquier ALB automáticamente.
+
+#### Paso 1 — Subir la imagen del backend
+
+```bash
+aws ecr-public get-login-password --region us-east-1 \
+  | docker login --username AWS --password-stdin public.ecr.aws
+
+docker build --platform linux/amd64 \
+  -t public.ecr.aws/a1v1u4e4/adma/backend:latest \
+  ./backend
+
+docker push public.ecr.aws/a1v1u4e4/adma/backend:latest
+```
+
+#### Paso 2 — Crear la infraestructura
+
+```bash
+cd terraform
+terraform init   # solo la primera vez
+terraform apply
+```
+
+Al terminar, anota el output:
+
+```
+app_url = "http://adma-sa2-sa3-alb-XXXX.eu-south-2.elb.amazonaws.com"
+alb_dns = "adma-sa2-sa3-alb-XXXX.eu-south-2.elb.amazonaws.com"
+```
+
+#### Paso 3 — Subir la imagen del frontend
+
+El frontend **no necesita** el DNS del ALB en tiempo de build. Usa rutas
+relativas (`/api/...`) que el navegador resuelve contra el mismo origen que
+sirve la página (el ALB). La imagen es portable y funciona con cualquier ALB
+sin recompilar.
+
+```bash
+docker build --platform linux/amd64 \
+  -t public.ecr.aws/a1v1u4e4/adma/frontend:latest \
+  ./frontend
+
+docker push public.ecr.aws/a1v1u4e4/adma/frontend:latest
+```
+
+#### Paso 4 — Forzar que ECS use la nueva imagen del frontend
+
+ECS cachea el tag `:latest`. Hay que indicarle que redescargue.
+**Solo es necesario si subes una imagen nueva después de que ECS ya está corriendo.**
+En un primer despliegue, ECS descarga la imagen correcta automáticamente.
+
+```bash
+aws ecs update-service \
+  --cluster adma-sa2-sa3-cluster \
+  --service frontend-service \
+  --force-new-deployment \
+  --region eu-south-2
+```
+
+#### Destruir todo
+
+```bash
+cd terraform
+terraform destroy
+```
+
+---
+
+### Actualizaciones de código (sin recrear infraestructura)
+
+Si solo cambia código (no Terraform):
+
+```bash
+# Backend cambia:
+docker build --platform linux/amd64 -t public.ecr.aws/a1v1u4e4/adma/backend:latest ./backend
+docker push public.ecr.aws/a1v1u4e4/adma/backend:latest
+aws ecs update-service --cluster adma-sa2-sa3-cluster --service backend-service \
+  --force-new-deployment --region eu-south-2
+
+# Frontend cambia:
+docker build --platform linux/amd64 \
+  -t public.ecr.aws/a1v1u4e4/adma/frontend:latest ./frontend
+docker push public.ecr.aws/a1v1u4e4/adma/frontend:latest
+aws ecs update-service --cluster adma-sa2-sa3-cluster --service frontend-service \
+  --force-new-deployment --region eu-south-2
+```
+
+---
+
+### Por qué el frontend ya NO necesita el ALB DNS en tiempo de build
+
+`VITE_API_BASE_URL` vale `""` (cadena vacía) por defecto. Cuando es vacío,
+`api.ts` usa rutas relativas (`/api/urls`, `/auth/login`…). El navegador
+resuelve las rutas relativas contra el mismo origen desde el que se cargó la
+página — que es el ALB. Da igual qué DNS tenga el ALB.
+
+```
+Navegador cargó la página desde:  http://adma-sa2-sa3-alb-xxxx.elb.amazonaws.com
+fetch("/api/urls")  →  http://adma-sa2-sa3-alb-xxxx.elb.amazonaws.com/api/urls  ✅
+```
+
+La misma imagen funciona en demo, en producción y con cualquier ALB futuro
+sin tocar nada.
+
+**Solo necesitarías `--build-arg VITE_API_BASE_URL=https://api.example.com`**
+si la API viviera en un dominio completamente distinto al del frontend.
+
+---
+
+### Arquitectura de routing — cómo funcionan las short URLs
+
+```
+Navegador → http://ALB/aB3xYz
+               │
+               │ ALB: no tiene regla para /{shortCode}
+               │ → envía al frontend (regla default)
+               ▼
+         [nginx :80]
+               │
+               │ location ~ ^/([a-zA-Z0-9]{4,10})$
+               │ → proxy_pass http://backend.local:8080
+               ▼
+         [backend.local]  ← resuelve por AWS Cloud Map
+               │
+               │ Spring Boot GET /{shortCode}
+               │ → HTTP 302 → URL original
+               ▼
+         Navegador redirige a destino final
+```
+
+**¿Por qué no el ALB directamente?**
+El ALB no soporta regex y tiene un límite de 6 wildcards por regla. No puede distinguir `/aB3xYz` (short code) de `/login` (ruta de la SPA) sin un prefijo. nginx sí puede con `location ~ ^/([a-zA-Z0-9]{4,10})$`.
+
+**¿Por qué Cloud Map y no el ALB como upstream de nginx?**
+Si nginx usara el ALB como upstream para `/{shortCode}`, el ALB lo reenviaría al frontend → bucle infinito. Cloud Map da al backend una DNS interna (`backend.local`) que nginx puede usar para llegar directamente al contenedor del backend.
+
+---
+
+### Variables de `terraform.tfvars`
+
+| Variable            | Descripción                          | Ejemplo                |
+| ------------------- | ------------------------------------ | ---------------------- |
+| `environment`       | `demo` o `production`                | `"demo"`               |
+| `frontend_image`    | URI de la imagen del frontend en ECR | `"public.ecr.aws/..."` |
+| `backend_image`     | URI de la imagen del backend en ECR  | `"public.ecr.aws/..."` |
+| `db_name`           | Nombre de la base de datos           | `"appdb"`              |
+| `db_user`           | Usuario de la base de datos          | `"appuser"`            |
+| `db_pass`           | Contraseña de la base de datos       | `"password123"`        |
+| `jwt_secret`        | Secreto JWT (mín. 32 chars)          | `"cambia-esto-!!"`     |
+| `jwt_expiration_ms` | Duración del token JWT en ms         | `86400000`             |
+
+---
+
+### Modos `demo` vs `production`
+
+| Recurso            | `demo`        | `production`  |
+| ------------------ | ------------- | ------------- |
+| Frontend tasks     | min 1 / max 2 | min 2 / max 4 |
+| Backend tasks      | min 1 / max 2 | min 2 / max 4 |
+| RDS instance       | `db.t3.micro` | `db.t3.small` |
+| Container Insights | OFF           | ON            |
+
+---
+
+### Problemas frecuentes
+
+| Síntoma                                        | Causa                                                           | Solución                                                      |
+| ---------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------- |
+| Backend unhealthy en el ALB                    | `/actuator/health` no existe (Actuator no está en dependencias) | Health check apunta a `/api/stats` ✅                         |
+| Short URL da 404 en el frontend                | El ALB no tiene regla para `/{shortCode}`                       | nginx lo gestiona internamente vía Cloud Map ✅               |
+| `Resource already exists` en `terraform apply` | Nombre de recurso fijo en despliegue anterior                   | IAM role usa `name_prefix`; RDS usa `identifier` explícito ✅ |
+| ECS no actualiza la imagen                     | ECS cachea `:latest`                                            | `aws ecs update-service --force-new-deployment` ✅            |
+| nginx devuelve 502 justo al arrancar           | Cloud Map tarda 10-30s en registrar la IP del backend           | Esperar unos segundos; nginx reintenta cada 10s ✅            |
+
+---
 
 1. [Descripción del proyecto](#1-descripción-del-proyecto)
 2. [Arquitectura](#2-arquitectura)

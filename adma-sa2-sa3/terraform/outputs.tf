@@ -1,9 +1,18 @@
-# Output para acceder a la aplicación desde el navegador
-
-output "alb_dns" {
-  value = aws_lb.this.dns_name
+# URL pública para acceder a la aplicación desde el navegador
+output "app_url" {
+  description = "Abre esta URL en el navegador para acceder a la aplicación"
+  value       = "http://${aws_lb.this.dns_name}"
 }
-# Output para obtener el ID del security group de ECS, para utilizar en cdk-drift-control
-output "ecs_sg_id" {
-  value = aws_security_group.ecs_sg.id
+
+# DNS del ALB (útil para scripts o CI/CD)
+output "alb_dns" {
+  description = "DNS del Application Load Balancer"
+  value       = aws_lb.this.dns_name
+}
+
+# Endpoint de la base de datos (para depuración, nunca exponer públicamente)
+output "db_endpoint" {
+  description = "Endpoint privado de RDS (solo accesible desde la VPC)"
+  value       = aws_db_instance.this.address
+  sensitive   = true
 }
