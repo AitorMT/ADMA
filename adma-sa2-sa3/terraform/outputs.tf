@@ -10,9 +10,8 @@ output "alb_dns" {
   value       = aws_lb.this.dns_name
 }
 
-# Endpoint de la base de datos (para depuración, nunca exponer públicamente)
-output "db_endpoint" {
-  description = "Endpoint privado de RDS (solo accesible desde la VPC)"
-  value       = aws_db_instance.this.address
-  sensitive   = true
+# Security group ID (útil para scripts o CI/CD)
+output "security_group_id" {
+  description = "ID del Security Group asociado a la base de datos (útil para scripts o CI/CD)"
+  value       = aws_security_group.db_sg.id
 }
