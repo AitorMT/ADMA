@@ -128,15 +128,15 @@ resource "aws_ecs_task_definition" "backend" {
         },
         {
           name  = "APP_BASE_URL"
-          value = "http://${aws_lb.this.dns_name}"
+          value = local.public_base_url
         },
         {
           name  = "FRONTEND_URL"
-          value = "http://${aws_lb.this.dns_name}"
+          value = local.public_base_url
         },
         {
           name  = "CORS_ALLOWED_ORIGINS"
-          value = "http://${aws_lb.this.dns_name}"
+          value = local.cors_allowed_origins
         },
         {
           name  = "JWT_SECRET"
@@ -182,7 +182,7 @@ resource "aws_ecs_service" "frontend" {
   }
 
   depends_on = [
-    aws_lb_listener.http,
+    aws_lb_listener.https,
     aws_iam_role_policy_attachment.ecs_task_execution_policy
   ]
 }
@@ -209,7 +209,7 @@ resource "aws_ecs_service" "backend" {
   }
 
   depends_on = [
-    aws_lb_listener.http,
+    aws_lb_listener.https,
     aws_lb_listener_rule.api,
     aws_iam_role_policy_attachment.ecs_task_execution_policy,
     aws_db_instance.this

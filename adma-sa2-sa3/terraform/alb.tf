@@ -60,11 +60,29 @@ resource "aws_lb_target_group" "backend" {
 
 # ── Listeners ─────────────────────────────────────────────────────────────────
 
-# Listener HTTP en el puerto 80 → por defecto al frontend
+# Listener HTTP en el puerto 80: redirección obligatoria a HTTPS
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.this.arn
   port              = 80
   protocol          = "HTTP"
+
+  default_action {
+    type = "redirect"
+
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+}
+
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.this.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = var.alb_ssl_policy
+  certificate_arn   = aws_acm_certificate_validation.site.certificate_arn
 
   default_action {
     type             = "forward"
@@ -74,7 +92,7 @@ resource "aws_lb_listener" "http" {
 
 # Regla (prioridad 10): /api/* y /auth/* → backend
 resource "aws_lb_listener_rule" "api" {
-  listener_arn = aws_lb_listener.http.arn
+  listener_arn = aws_lb_listener.https.arn
   priority     = 10
 
   action {
@@ -93,7 +111,7 @@ resource "aws_lb_listener_rule" "api" {
 # Se evalúa antes del catch-all del backend para que /login,
 # /register y /r/* nunca lleguen al backend.
 resource "aws_lb_listener_rule" "spa_routes" {
-  listener_arn = aws_lb_listener.http.arn
+  listener_arn = aws_lb_listener.https.arn
   priority     = 20
 
   action {
@@ -112,7 +130,7 @@ resource "aws_lb_listener_rule" "spa_routes" {
 # El backend redirige al destino real (302) o devuelve 404 si no existe.
 # El frontend (regla default) solo sirve la SPA para /.
 resource "aws_lb_listener_rule" "short_codes" {
-  listener_arn = aws_lb_listener.http.arn
+  listener_arn = aws_lb_listener.https.arn
   priority     = 30
 
   action {
