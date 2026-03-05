@@ -95,8 +95,11 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Public auth endpoints
                 .requestMatchers("/auth/**").permitAll()
-                // Public redirect endpoint (GET /{shortCode})
-                .requestMatchers(HttpMethod.GET, "/{shortCode:[a-zA-Z0-9]{4,10}}").permitAll()
+                // Public redirect endpoint — the ALB forwards /{shortCode} directly
+                // to this service (priority-30 rule). Spring MVC regex matchers can
+                // mis-evaluate when called from the security filter chain, so we use
+                // a plain wildcard and let RedirectController reject non-matching codes.
+                .requestMatchers(HttpMethod.GET, "/{shortCode}").permitAll()
                 // Anonymous URL creation (no JWT required)
                 .requestMatchers(HttpMethod.POST, "/api/urls/public").permitAll()
                 // Public platform stats (landing page footer)

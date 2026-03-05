@@ -15,13 +15,16 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Public redirect endpoint.
  * <p>
- * This controller deliberately lives at the root path (not under {@code /api})
- * to produce clean short URLs like {@code https://short.ly/aB3xYz}.
+ * Short URLs are served at the root path {@code /{shortCode}} so they look
+ * clean when shared (e.g. {@code http://myapp.com/aB3xYz}).
  * <p>
- * When a short code is valid, the browser is sent a 302 → original URL.
- * When a short code is unknown or expired, the browser is redirected to the
- * frontend SPA error page ({@code /r/:code}) instead of receiving raw JSON,
- * so the user always sees a polished error screen.
+ * The nginx container proxies bare short-code paths directly to this backend
+ * via AWS Cloud Map service discovery (internal DNS), so the ALB never needs
+ * to pattern-match individual short codes.
+ * <p>
+ * When a short code is valid, the browser receives a 302 → original URL.
+ * When unknown or expired, it is redirected to the SPA error page
+ * ({@code /r/:code?error=...}) so the user always sees a polished UI.
  */
 @RestController
 @RequiredArgsConstructor
@@ -42,9 +45,6 @@ public class RedirectController {
      *   <li>302 → {frontendUrl}/r/{code}?error=not_found — code not in DB</li>
      *   <li>302 → {frontendUrl}/r/{code}?error=expired  — link has expired</li>
      * </ul>
-     * Browser users always land on either the destination or the SPA error page.
-     * API clients (fetching with Accept: application/json) that need the raw
-     * status codes should call the /api/urls endpoint instead.
      */
     @GetMapping("/{shortCode:[a-zA-Z0-9]{4,10}}")
     public ResponseEntity<Void> redirect(@PathVariable String shortCode) {

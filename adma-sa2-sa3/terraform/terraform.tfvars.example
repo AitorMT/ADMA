@@ -1,0 +1,19 @@
+# Copia este fichero a terraform.tfvars y rellena los valores reales:
+#   cp terraform.tfvars.example terraform.tfvars
+
+environment = "demo"
+
+frontend_image = "public.ecr.aws/a1v1u4e4/adma/frontend:latest"
+backend_image  = "public.ecr.aws/a1v1u4e4/adma/backend:latest"
+
+# Dominio público principal
+domain_name = "otakudojo.es"
+
+# Si ya existe una hosted zone en Route53, indica su ID y Terraform no creará otra.
+# hosted_zone_id = "Z06158722UM78SZOK9MT3"
+
+# Contraseña de la base de datos PostgreSQL (RDS)
+db_pass = "CHANGE_ME"
+
+# Clave secreta para firmar tokens JWT (mínimo 32 caracteres)
+jwt_secret = "CHANGE_ME_min_32_chars_long!!!!!!!"

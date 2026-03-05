@@ -1,0 +1,37 @@
+# ===============================
+# Terraform state (contiene secretos en texto plano)
+# ===============================
+*.tfstate
+*.tfstate.backup
+tfplan
+
+# ===============================
+# Variables con credenciales reales
+# ===============================
+# terraform.tfvars contiene db_pass y jwt_secret.
+# Cada desarrollador debe crear su propio fichero local.
+terraform.tfvars
+
+# ===============================
+# Directorio de providers descargados
+# ===============================
+.terraform/
+
+# ===============================
+# Crash logs de Terraform
+# ===============================
+crash.log
+crash.*.log
+
+# ===============================
+# Ficheros de override (configuración local)
+# ===============================
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# ===============================
+# OS
+# ===============================
+.DS_Store
