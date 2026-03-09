@@ -1,0 +1,13 @@
+{
+  "name": "drift-control",
+  "version": "1.0.0",
+  "dependencies": {
+    "aws-cdk-lib": "^2.239.0",
+    "constructs": "^10.5.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.0"
+  }
+}
